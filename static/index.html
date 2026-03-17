@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BetScout Pro</title>
+  <style>
+    :root{
+      --bg:#0b1220;
+      --card:#111827;
+      --line:#243041;
+      --text:#e5e7eb;
+      --muted:#94a3b8;
+      --accent:#22c55e;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+      background:linear-gradient(180deg,#08101c,#111827 45%,#08101c);
+      color:var(--text);
+    }
+    .wrap{
+      max-width:760px;
+      margin:0 auto;
+      padding:16px;
+    }
+    .title{
+      font-size:30px;
+      font-weight:900;
+      margin:8px 0 6px;
+    }
+    .sub{
+      color:var(--muted);
+      line-height:1.5;
+      margin-bottom:16px;
+    }
+    .card{
+      background:rgba(17,24,39,.96);
+      border:1px solid var(--line);
+      border-radius:18px;
+      padding:16px;
+      margin-bottom:14px;
+    }
+    .grid{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:12px;
+    }
+    @media (max-width:640px){
+      .grid{grid-template-columns:1fr;}
+    }
+    label{
+      display:block;
+      font-size:13px;
+      color:var(--muted);
+      margin-bottom:6px;
+    }
+    input,select{
+      width:100%;
+      background:#09111f;
+      color:var(--text);
+      border:1px solid var(--line);
+      border-radius:12px;
+      padding:12px 14px;
+      font-size:16px;
+      outline:none;
+    }
+    button{
+      border:none;
+      border-radius:14px;
+      padding:12px 16px;
+      font-size:15px;
+      font-weight:800;
+      cursor:pointer;
+      background:var(--accent);
+      color:#05250f;
+      margin-top:14px;
+      width:100%;
+    }
+    .metric{
+      background:#09111f;
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:12px;
+      margin-bottom:10px;
+    }
+    .metric .k{
+      font-size:12px;
+      color:var(--muted);
+      margin-bottom:4px;
+    }
+    .metric .v{
+      font-size:18px;
+      font-weight:800;
+    }
+    .reasons{
+      margin:8px 0 0 0;
+      padding-left:18px;
+      line-height:1.5;
+    }
+    .small{
+      font-size:13px;
+      color:var(--muted);
+      line-height:1.5;
+    }
+    .logo{
+      display:inline-block;
+      padding:8px 12px;
+      border:1px solid var(--line);
+      border-radius:999px;
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="logo">BetScout Pro • live football stats</div>
+    <div class="title">BetScout Pro</div>
+    <div class="sub">
+      Ostrá mobilní verze pro fotbal přes API-SPORTS. Vyhledá týmy a spočítá základní analýzu zápasu.
+    </div>
+
+    <div class="card">
+      <div class="grid">
+        <div>
+          <label for="homeSearch">Domácí tým</label>
+          <input id="homeSearch" placeholder="Např. Liverpool" />
+        </div>
+        <div>
+          <label for="awaySearch">Hostující tým</label>
+          <input id="awaySearch" placeholder="Např. Arsenal" />
+        </div>
+
+        <div>
+          <label for="league">Liga ID</label>
+          <select id="league">
+            <option value="39">Premier League</option>
+            <option value="140">La Liga</option>
+            <option value="78">Bundesliga</option>
+            <option value="135">Serie A</option>
+            <option value="61">Ligue 1</option>
+            <option value="345">Czech First League</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="season">Sezóna</label>
+          <input id="season" type="number" value="2024" />
+        </div>
+      </div>
+
+      <button onclick="runAnalysis()">Analyzovat zápas</button>
+      <div class="small" style="margin-top:10px">
+        Pozn.: tým se vybere jako první nalezený výsledek podle názvu.
+      </div>
+    </div>
+
+    <div class="card" id="result">
+      <div class="small">Zadej domácí a hostující tým a klikni na analyzovat.</div>
+    </div>
+  </div>
+
+  <script>
+    async function findTeamId(name, league, season){
+      const res = await fetch(`/api/search-teams?name=${encodeURIComponent(name)}&league=${league}&season=${season}`);
+      const data = await res.json();
+      if(!data.ok || !data.results || !data.results.length){
+        throw new Error(`Tým nenalezen: ${name}`);
+      }
+      return data.results[0];
+    }
+
+    async function runAnalysis(){
+      const homeName = document.getElementById("homeSearch").value.trim();
+      const awayName = document.getElementById("awaySearch").value.trim();
+      const league = document.getElementById("league").value;
+      const season = document.getElementById("season").value;
+      const resultBox = document.getElementById("result");
+
+      if(!homeName || !awayName){
+        resultBox.innerHTML = '<div class="small">Vyplň oba týmy.</div>';
+        return;
+      }
+
+      resultBox.innerHTML = '<div class="small">Načítám data…</div>';
+
+      try{
+        const home = await findTeamId(homeName, league, season);
+        const away = await findTeamId(awayName, league, season);
+
+        const res = await fetch(`/api/analyze?home_team_id=${home.id}&away_team_id=${away.id}&league=${league}&season=${season}`);
+        const data = await res.json();
+
+        if(!data.ok){
+          resultBox.innerHTML = `<div class="small">Chyba: ${data.detail || 'Nepodařilo se načíst analýzu.'}</div>`;
+          return;
+        }
+
+        const reasonsHtml = (data.reasons || []).map(r => `<li>${r}</li>`).join("");
+
+        resultBox.innerHTML = `
+          <div class="metric">
+            <div class="k">Zápas</div>
+            <div class="v">${data.matchup}</div>
+          </div>
+          <div class="metric">
+            <div class="k">Winner lean</div>
+            <div class="v">${data.winner_lean}</div>
+          </div>
+          <div class="metric">
+            <div class="k">Safer pick</div>
+            <div class="v">${data.safer_pick}</div>
+          </div>
+          <div class="metric">
+            <div class="k">Goals pick</div>
+            <div class="v">${data.goals_pick}</div>
+          </div>
+          <div class="metric">
+            <div class="k">Confidence</div>
+            <div class="v">${data.confidence}%</div>
+          </div>
+          <div class="metric">
+            <div class="k">Důvody</div>
+            <ul class="reasons">${reasonsHtml}</ul>
+          </div>
+        `;
+      } catch (err){
+        resultBox.innerHTML = `<div class="small">Chyba: ${err.message}</div>`;
+      }
+    }
+  </script>
+</body>
+</html>
